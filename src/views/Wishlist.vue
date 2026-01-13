@@ -68,26 +68,6 @@
         </div>
       </div>
     </div>
-
-    <!-- 推荐商品 -->
-    <div v-if="wishlistItems.length > 0" class="recommended-section">
-      <h2>You might also like</h2>
-      <div class="recommended-grid">
-        <div
-            v-for="item in recommendedItems"
-            :key="item.id"
-            class="recommended-item"
-            @click="$router.push(`/goods/${item.id}`)"
-        >
-          <img :src="item.coverImage" :alt="item.title" class="recommended-image" />
-          <div class="recommended-info">
-            <h4>{{ item.title }}</h4>
-            <p class="recommended-price">RM{{ item.price }}</p>
-            <p class="recommended-campus">{{ item.campus }}</p>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 

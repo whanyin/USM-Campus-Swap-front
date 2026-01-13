@@ -133,30 +133,6 @@
             </div>
           </div>
         </div>
-
-        <div class="related-content">
-          <div class="section-title">You Might Also Like</div>
-          <div class="related-grid">
-            <div
-                v-for="item in relatedGoods"
-                :key="item.id"
-                class="related-card"
-                @click="viewGoods(item.id)"
-            >
-              <div class="related-img-wrapper">
-                <img :src="item.coverImage" :alt="item.title" />
-                <div class="hover-overlay">View</div>
-              </div>
-              <div class="related-details">
-                <h4 class="truncate">{{ item.title }}</h4>
-                <div class="related-meta">
-                  <span class="r-price">RM{{ item.price }}</span>
-                  <span class="r-campus">{{ item.campus }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   </div>

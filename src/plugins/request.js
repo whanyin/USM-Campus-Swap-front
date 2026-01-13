@@ -1,22 +1,23 @@
 import axios from 'axios'
 
-// Create axios instance
-// const request = axios.create({
-//     baseURL: 'http://localhost:8081/api',
-//     timeout: 10000,
-//     withCredentials: true,
-//     headers: {
-//         'Content-Type': 'application/json;charset=utf-8'
-//     }
-// })
+
 const request = axios.create({
-    baseURL: 'https://usm-compus-swap.duckdns.org/api',
+    baseURL: 'http://localhost:8081/api',
     timeout: 10000,
-    withCredentials: true, // 保持 true，这配合你后端 yml 里的 secure: true
+    withCredentials: true,
     headers: {
         'Content-Type': 'application/json;charset=utf-8'
     }
 })
+
+// const request = axios.create({
+//     baseURL: 'https://usm-compus-swap.duckdns.org/api',
+//     timeout: 10000,
+//     withCredentials: true, // 保持 true，这配合你后端 yml 里的 secure: true
+//     headers: {
+//         'Content-Type': 'application/json;charset=utf-8'
+//     }
+// })
 
 // Request interceptor - Add logging
 request.interceptors.request.use(

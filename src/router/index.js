@@ -67,6 +67,27 @@ const routes = [
         component: () => import('../views/Login.vue')
     },
     {
+        path: '/admin/goods',
+        name: 'AdminGoods',
+        component: () => import('../views/AdminGoodsView.vue'),
+        meta: {
+            requiresAuth: true,
+            requiresAdmin: true
+        }
+    },
+    {
+        path: '/admin/orders',
+        name: 'AdminOrders',
+        component: () => import('../views/AdminOrderView.vue'),
+        meta: { requiresAuth: true, requiresAdmin: true }
+    },
+    {
+        path: '/admin/users',
+        name: 'AdminUsers',
+        component: () => import('../views/AdminUserView.vue'),
+        meta: { requiresAuth: true, requiresAdmin: true }
+    },
+    {
         path: '/register',
         name: 'Register',
         component: () => import('../views/Register.vue')
@@ -105,6 +126,16 @@ router.beforeEach(async (to, from, next) => {
         // 如果需要登录，且经过上面的尝试后，依然没有用户信息
         if (!userStore.userInfo) {
             next('/login') // 踢回登录页
+            return
+        }
+    }
+
+    if (to.meta.requiresAdmin) {
+        // 如果不是管理员 (假设 role 为 1 是管理员)
+        if (userStore.userInfo?.userRole !== 1) {
+            // 注意：这里的字段名要对应你后端返回的 role 字段
+            ElMessage.error('Access Denied: Admin privileges required')
+            next('/') // 踢回首页
             return
         }
     }

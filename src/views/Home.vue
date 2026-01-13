@@ -46,7 +46,7 @@
 
           <div class="card-info">
             <div class="price-row">
-              <span class="price">RM {{ item.price.toFixed(2) }}</span>
+              <span class="price">RM {{ item.price?.toFixed(2) }}</span>
               <span class="likes">
                  <el-icon><Star /></el-icon> {{ item.likeCount || 0 }}
               </span>
@@ -66,6 +66,7 @@
             layout="prev, pager, next"
             :total="total"
             :page-size="queryParams.pageSize"
+            :current-page="queryParams.pageNum"
             @current-change="handlePageChange"
         />
       </div>
@@ -77,20 +78,20 @@
 import { ref, reactive, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Star } from '@element-plus/icons-vue'
-import { getGoodsList } from '@/api/goods'      // 引入商品API
-import { listCategories } from '@/api/category' // 引入分类API
+import myAxios from '@/plugins/request' // 确保引入了你的 axios 实例
+import { listCategories } from '@/api/category'
 
 const router = useRouter()
 const route = useRoute()
 
-// 状态变量
+// State
 const loading = ref(false)
 const products = ref([])
 const categories = ref([])
 const activeCategory = ref('all')
 const total = ref(0)
 
-// 查询参数
+// Query Params
 const queryParams = reactive({
   pageNum: 1,
   pageSize: 12,
@@ -98,7 +99,7 @@ const queryParams = reactive({
   categoryId: null
 })
 
-// --- 核心逻辑 1: 加载分类 ---
+// 1. Load Categories
 const loadCategories = async () => {
   try {
     const res = await listCategories()
@@ -108,54 +109,69 @@ const loadCategories = async () => {
   }
 }
 
-// --- 核心逻辑 2: 加载商品列表 ---
+// 2. Load Products (Core Logic)
 const loadProducts = async () => {
   loading.value = true
   try {
-    // 检查路由里有没有搜索关键词
-    if (route.query.keyword) {
-      queryParams.keyword = route.query.keyword
+    // 同步路由中的关键词 (Header 传过来的)
+    queryParams.keyword = route.query.keyword || ''
+
+    // 构造后端需要的参数
+    const params = {
+      current: queryParams.pageNum,
+      size: queryParams.pageSize,
+      title: queryParams.keyword, // ★ 关键：后端模糊搜索字段是 title
+      status: 1 // 只显示 Active (上架中) 的商品
     }
 
-    const res = await getGoodsList(queryParams)
+    // 如果选择了分类，加上分类ID
+    if (queryParams.categoryId) {
+      params.categoryId = queryParams.categoryId
+    }
 
-    // 处理后端返回的数据
-    // 后端返回的是 IPage 对象，列表在 records 字段里
-    const rawList = res.records || []
-    total.value = res.total || 0
+    // 调用后端接口
+    const res = await myAxios.get('/goods/list/page/vo', { params })
 
-    //  数据转换 (Data Mapping)
-    products.value = rawList.map(item => {
-      let cover = 'https://placehold.co/300x300?text=No+Image'
+    if (res) {
+      const rawList = res.records || []
+      total.value = res.total || 0
 
-      if (item.images) {
-        try {
-          // 尝试解析 JSON
-          const imgArray = JSON.parse(item.images)
-          if (Array.isArray(imgArray) && imgArray.length > 0) {
-            cover = imgArray[0] // 取第一张图
-          }
-        } catch (e) {
-          // 如果解析失败（或者已经是普通字符串），直接用
-          // 这里的逻辑是为了兼容某些可能直接存了 URL 字符串的情况
-          if (item.images && item.images.startsWith('http')) {
-            cover = item.images
+      // Data Transformation
+      products.value = rawList.map(item => {
+        // 图片处理：数据库存的是 JSON 字符串 ["url1", "url2"]，需要解析
+        let cover = 'https://placehold.co/300x300?text=No+Image'
+        if (item.images) {
+          try {
+            // 尝试解析 JSON
+            const imgArray = JSON.parse(item.images)
+            if (Array.isArray(imgArray) && imgArray.length > 0) {
+              cover = imgArray[0]
+            }
+          } catch (e) {
+            // 如果解析失败，可能是存的纯字符串 URL
+            if (item.images.startsWith('http')) {
+              cover = item.images
+            }
           }
         }
-      }
+        // 如果有 coverImage 字段且不为空，优先用 coverImage
+        if (item.coverImage) {
+          cover = item.coverImage
+        }
 
-      // 2. 处理成色 (Number -> Text)
-      const conditionMap = { 1: 'New', 2: 'Like New', 3: 'Good', 4: 'Fair' }
+        // 成色映射
+        const conditionMap = { 1: 'New', 2: 'Like New', 3: 'Good', 4: 'Fair' }
 
-      return {
-        ...item,
-        coverImage: cover,
-        conditionText: conditionMap[item.condition] || 'Good',
-        userAvatar: item.sellerAvatar || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png', // 默认头像
-        userName: item.sellerName || 'User'
-      }
-    })
-
+        return {
+          ...item,
+          coverImage: cover,
+          conditionText: conditionMap[item.condition] || 'Good',
+          // 绑定用户信息
+          userAvatar: item.userAvatar || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png',
+          userName: item.userName || 'User'
+        }
+      })
+    }
   } catch (error) {
     console.error('Failed to load products', error)
   } finally {
@@ -163,40 +179,46 @@ const loadProducts = async () => {
   }
 }
 
-// 分类点击
+// Handle Category Click
 const handleCategorySelect = (id) => {
   activeCategory.value = id
   queryParams.categoryId = id === 'all' ? null : id
-  queryParams.pageNum = 1 // 重置到第一页
+  queryParams.pageNum = 1
   loadProducts()
 }
 
-// 翻页
+// Handle Pagination
 const handlePageChange = (val) => {
   queryParams.pageNum = val
   loadProducts()
   scrollToProducts()
 }
 
-// 跳转详情
+// Navigation
 const goToDetail = (id) => {
   router.push(`/goods/${id}`)
 }
 
-// 滚动到商品区
 const scrollToProducts = () => {
   document.getElementById('products-anchor')?.scrollIntoView({ behavior: 'smooth' })
 }
 
-// 监听搜索词变化
-watch(() => route.query.keyword, (newVal) => {
-  queryParams.keyword = newVal || ''
-  loadProducts()
-})
+// ★ Watch Route Changes: 监听 URL keyword 变化 (Header 搜索触发)
+watch(
+    () => route.query.keyword,
+    (newVal) => {
+      queryParams.keyword = newVal || ''
+      queryParams.pageNum = 1 // 搜索时重置到第一页
+      loadProducts()
+    }
+)
 
-// 页面初始化
 onMounted(() => {
   loadCategories()
+  // 首次加载时，如果有 keyword 也带上
+  if (route.query.keyword) {
+    queryParams.keyword = route.query.keyword
+  }
   loadProducts()
 })
 </script>
@@ -207,7 +229,7 @@ onMounted(() => {
   background-color: #f9fafb;
 }
 
-/* Banner 样式 */
+/* Banner */
 .hero-section {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
@@ -218,7 +240,7 @@ onMounted(() => {
 .hero-content h1 { font-size: 3rem; margin-bottom: 1rem; font-weight: 700; }
 .hero-content p { font-size: 1.25rem; margin-bottom: 2rem; opacity: 0.9; }
 
-/* 分类筛选条 */
+/* Filter */
 .category-filter {
   display: flex;
   justify-content: center;
@@ -244,7 +266,7 @@ onMounted(() => {
   box-shadow: 0 4px 6px rgba(102, 126, 234, 0.3);
 }
 
-/* 商品网格布局 */
+/* Grid */
 .products-container {
   max-width: 1200px;
   margin: 0 auto;
@@ -256,7 +278,7 @@ onMounted(() => {
   gap: 25px;
 }
 
-/* 商品卡片样式 */
+/* Card */
 .product-card {
   background: white;
   border-radius: 12px;
@@ -334,7 +356,6 @@ onMounted(() => {
   color: #1f2937;
   margin-bottom: 12px;
   line-height: 1.4;
-  /* 标题只显示两行 */
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;

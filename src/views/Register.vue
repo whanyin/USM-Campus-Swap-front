@@ -48,7 +48,7 @@
                 <el-form-item label="Account" prop="userAccount" class="form-item">
                   <el-input
                       v-model="form.userAccount"
-                      placeholder="Choose a username"
+                      placeholder="Enter your Account"
                       maxlength="20"
                   />
                   <p class="form-hint">4-20 characters, letters, numbers and underscores only</p>
@@ -179,6 +179,7 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Check, User } from '@element-plus/icons-vue'
+import { userRegister } from '@/api/user' // 1. 确保引入 API
 
 const router = useRouter()
 const formRef = ref()
@@ -198,7 +199,7 @@ const form = reactive({
   phone: ''
 })
 
-// 验证规则
+// 验证规则 (保持不变)
 const rules = reactive({
   username: [
     { required: true, message: 'Please enter your User name', trigger: 'blur' },
@@ -270,7 +271,6 @@ const rules = reactive({
     {
       validator: (rule, value, callback) => {
         if (value) {
-          // 现在只需要验证数字部分，因为前面已经固定了+60
           if (value.length < 9 || value.length > 10) {
             callback(new Error('Phone number must be 9-10 digits'))
           } else if (!/^\d+$/.test(value)) {
@@ -287,25 +287,37 @@ const rules = reactive({
   ]
 })
 
-// 注册处理
 const handleRegister = async () => {
   if (!formRef.value) return
 
   try {
     loading.value = true
+    // 1. 校验表单
     await formRef.value.validate()
 
-    // 模拟注册API调用
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    // 2. 构造数据 (处理字段名对应和手机号前缀)
+    // 这里的 form 是 reactive 对象，直接访问属性，不需要 .value
+    const requestData = {
+      ...form,
+      userName: form.username,
+      phone: form.phone ? `+60${form.phone}` : ''
+    }
 
-    ElMessage.success('Registration successful! Please check your email for verification.')
+    // 3. 发送真实请求
+    await userRegister(requestData)
+
+    // 4. 成功处理
+    ElMessage.success('Registration successful! Please sign in.')
     router.push('/login')
 
   } catch (error) {
+    console.error('Register Error:', error)
+    // 5. 错误处理
     if (error.errorFields) {
       ElMessage.error('Please fill in all required fields correctly')
     } else {
-      ElMessage.error('Registration failed. Please try again.')
+      // 显示后端返回的具体错误 (比如 "账号已存在")
+      ElMessage.error(error.message || 'Registration failed. Please try again.')
     }
   } finally {
     loading.value = false

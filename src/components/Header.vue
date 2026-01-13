@@ -50,7 +50,6 @@
     <div class="header-right">
       <!-- 消息和发布按钮 -->
       <div class="action-buttons">
-        <el-badge :value="3" :max="99" class="message-badge">
           <el-button
               icon="ChatDotRound"
               @click="goMessages"
@@ -58,8 +57,6 @@
               size="large"
               circle
           ></el-button>
-        </el-badge>
-
         <router-link to="/sell">
           <el-button
               class="sell-button"
@@ -105,18 +102,6 @@
                   <el-icon><User /></el-icon>
                   Profile
                 </el-dropdown-item>
-                <el-dropdown-item @click="router.push('/my-wishlist')">
-                  <el-icon><Star /></el-icon>
-                  My Wishlist
-                </el-dropdown-item>
-                <el-dropdown-item @click="router.push('/my-products')">
-                  <el-icon><Collection /></el-icon>
-                  My Products
-                </el-dropdown-item>
-                <el-dropdown-item @click="router.push('/orders')">
-                  <el-icon><Document /></el-icon>
-                  Orders
-                </el-dropdown-item>
                 <el-dropdown-item divided @click="handleLogout">
                   <el-icon><SwitchButton /></el-icon>
                   Logout
@@ -133,6 +118,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useUserStore } from '@/stores/user' // 1. 引入 Store
 import {
   Shop,
   House,
@@ -149,14 +135,16 @@ import {
 
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore() // 2. 实例化 Store
 
 const searchKeyword = ref('')
 const activeIndex = computed(() => route.path)
-const isLogin = ref(false) // 实际项目中应该从 store 或 composable 获取
 
-// 模拟用户数据
-const userAvatar = ref('')
-const userName = ref('John Doe')
+// ★★★ 3. 核心修改：从 Store 中获取真实数据 ★★★
+// 使用 computed 确保响应式：Store 变了，这里自动跟着变
+const isLogin = computed(() => !!userStore.userInfo)
+const userAvatar = computed(() => userStore.userInfo?.avatarUrl || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png') // 默认头像
+const userName = computed(() => userStore.userInfo?.username || 'User')
 
 const handleSearch = () => {
   if (searchKeyword.value.trim()) {
@@ -164,9 +152,13 @@ const handleSearch = () => {
   }
 }
 
-const handleLogout = () => {
-  isLogin.value = false
-  router.push('/')
+// ★★★ 4. 真实的注销逻辑 ★★★
+const handleLogout = async () => {
+  await userStore.logout() // 调用 Store 的注销方法
+  // 清空完 Store 后，自动跳转回首页或登录页
+  router.push('/login')
+  // 可选：强制刷新页面以清除所有残留状态
+  // window.location.reload()
 }
 
 const goMessages = () => {
@@ -224,15 +216,18 @@ const goMessages = () => {
 
 /* 中间搜索框 - 现在真正居中 */
 .header-center {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
   display: flex;
   align-items: center;
+  justify-content: center; /* 让搜索框在中间区域居中 */
+  flex: 1; /* 占据左右两侧剩下的所有空间 */
+  min-width: 0; /* 防止内容溢出 */
 }
 
 .search-input {
-  width: 500px;
+  .search-input {
+    width: 100%; /* 改为 100% */
+    max-width: 500px; /* 保持原来的宽度作为最大限制 */
+  }
 }
 
 .search-input :deep(.el-input-group__append) {

@@ -92,106 +92,94 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Star, ShoppingCart, Close, ChatDotRound, View } from '@element-plus/icons-vue'
+import myAxios from "@/plugins/request.js"; // 1. 引入 Axios
 
 const router = useRouter()
 
-// 模拟收藏商品数据
-const wishlistItems = ref([
-  {
-    id: 5,
-    title: 'Smartphone iPhone 12',
-    price: 800.00,
-    coverImage: 'https://files.imagetourl.net/uploads/1763816270878-b14fc217-39b8-4052-ae6b-7ae2ef1a9e0c.jpg',
-    campus: 'Main Campus',
-    viewCount: 234,
-    userName: 'Chen Qi',
-    userAvatar: 'https://files.imagetourl.net/uploads/1763816168510-47145212-c6b1-4993-b848-fffaa4d2c8c5.jpg',
-    addedAt: '2024-01-10'
-  },
-  {
-    id: 6,
-    title: 'Dorm Refrigerator',
-    price: 320.00,
-    coverImage: 'https://files.imagetourl.net/uploads/1763816253332-bab3874d-329f-4452-a6dc-73b36a1fed7b.jpg',
-    campus: 'Main Campus',
-    viewCount: 167,
-    userName: 'Lina',
-    userAvatar: 'https://files.imagetourl.net/uploads/1763816168510-47145212-c6b1-4993-b848-fffaa4d2c8c5.jpg',
-    addedAt: '2024-01-08'
-  },
-  {
-    id: 7,
-    title: 'Shoes',
-    price: 120.00,
-    coverImage: 'https://i.postimg.cc/rw6m0XHp/shoes.jpg',
-    campus: 'Main Campus',
-    viewCount: 167,
-    userName: 'Ahmad',
-    userAvatar: 'https://files.imagetourl.net/uploads/1763816168510-47145212-c6b1-4993-b848-fffaa4d2c8c5.jpg',
-    addedAt: '2024-01-05'
-  }
-])
+// 2. 将初始值设为空数组
+const wishlistItems = ref([])
+const recommendedItems = ref([])
 
-// 模拟推荐商品
-const recommendedItems = ref([
-  {
-    id: 8,
-    title: 'T-shirt',
-    price: 40.00,
-    coverImage: 'https://i.postimg.cc/rwcDZ2Nv/xia-zai-(2).jpg',
-    campus: 'Main Campus'
-  },
-  {
-    id: 9,
-    title: 'Tennis Racket',
-    price: 65.00,
-    coverImage: 'https://images.unsplash.com/photo-1554068865-24cecd4e34b8?w=300&h=200&fit=crop',
-    campus: 'Main Campus'
-  },
-  {
-    id: 10,
-    title: 'Textbook - Calculus',
-    price: 45.00,
-    coverImage: 'https://images.unsplash.com/photo-1541963463532-d68292c34b19?w=300&h=200&fit=crop',
-    campus: 'Engineering Campus'
-  },
-  {
-    id: 11,
-    title: 'Headphones',
-    price: 85.00,
-    coverImage: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&h=200&fit=crop',
-    campus: 'Main Campus'
-  }
-])
-
-// 从收藏移除
-const removeFromWishlist = async (itemId) => {
+// 3. 加载收藏列表 (连接后端)
+const loadWishlist = async () => {
   try {
-    await ElMessageBox.confirm(
-        'Are you sure you want to remove this item from your wishlist?',
-        'Remove from Wishlist',
-        {
-          confirmButtonText: 'Remove',
-          cancelButtonText: 'Cancel',
-          type: 'warning'
-        }
-    )
+    // 1. res 现在直接就是后端返回的收藏商品数组（脱壳后）
+    const res = await myAxios.get('/wishlist/list')
 
-    wishlistItems.value = wishlistItems.value.filter(item => item.id !== itemId)
-    ElMessage.success('Item removed from wishlist')
-  } catch {
-    // User cancelled
+    // 2. 拦截器已处理 code !== 0 的情况，只需判断 res 是否为数组
+    if (res && Array.isArray(res)) {
+      wishlistItems.value = res.map(item => ({
+        id: item.goodsId,
+        title: item.goodsName,
+        price: item.price,
+        coverImage: item.coverImage,
+        campus: item.campus,
+        viewCount: item.viewCount || 0,
+        userName: item.sellerName,
+        userAvatar: item.sellerAvatar,
+        sellerId: item.sellerId
+      }))
+    }
+  } catch (error) {
+    // 3. 拦截器会自动通过 ElMessage 报错，此处仅需处理逻辑
+    console.error('Failed to load wishlist:', error)
   }
 }
 
-// 联系卖家
+// 4. 加载推荐商品 (可选)
+const loadRecommendations = async () => {
+  try {
+    const res = await myAxios.get('/goods/recommend')
+    if (res.code === 0) {
+      recommendedItems.value = res.data
+    }
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+// 5. 初始化加载
+onMounted(() => {
+  loadWishlist()
+  loadRecommendations()
+})
+
+// 6. 从收藏移除 (连接后端)
+const removeFromWishlist = async (itemId) => {
+  try {
+    await ElMessageBox.confirm(
+        'Are you sure you want to remove this item?',
+        'Remove from Wishlist',
+        { confirmButtonText: 'Remove', cancelButtonText: 'Cancel', type: 'warning' }
+    )
+
+    // 4. 调用后端删除接口（拦截器处理成功/失败）
+    await myAxios.post('/wishlist/remove', { goodsId: itemId })
+
+    // 5. 只要没有抛出错误，就代表成功
+    wishlistItems.value = wishlistItems.value.filter(item => item.id !== itemId)
+    ElMessage.success('Item removed from wishlist')
+  } catch (error) {
+    if (error !== 'cancel') console.error(error)
+  }
+}
+
+// 7. 联系卖家 (修复跳转逻辑)
 const contactSeller = (item) => {
-  ElMessage.success(`Opening chat with ${item.userName}...`)
-  router.push('/messages')
+  // 必须传递 targetUserId，否则聊天页面不知道跟谁聊
+  if (!item.sellerId) {
+    ElMessage.warning('Cannot contact this seller currently.')
+    return
+  }
+
+  router.push({
+    path: '/messages',
+    query: { targetUserId: item.sellerId }
+  })
 }
 </script>
 

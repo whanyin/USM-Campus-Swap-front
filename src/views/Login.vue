@@ -1,7 +1,7 @@
 <template>
   <div class="login-page">
     <div class="login-container">
-      <!-- 左侧欢迎信息 -->
+      <!-- 左侧欢迎区域 -->
       <div class="login-left">
         <div class="welcome-content">
           <h1>Welcome Back</h1>
@@ -44,6 +44,7 @@
                   v-model="form.userAccount"
                   placeholder="Enter your account"
                   :prefix-icon="User"
+                  @keyup.enter="handleLogin"
               />
             </el-form-item>
 
@@ -54,13 +55,9 @@
                   type="password"
                   show-password
                   :prefix-icon="Lock"
+                  @keyup.enter="handleLogin"
               />
             </el-form-item>
-
-            <div class="form-options">
-              <el-checkbox v-model="rememberMe">Remember me</el-checkbox>
-              <a href="#" class="forgot-link">Forgot password?</a>
-            </div>
 
             <el-button
                 type="primary"
@@ -72,7 +69,6 @@
               Sign In
             </el-button>
           </el-form>
-
         </div>
       </div>
     </div>
@@ -84,19 +80,18 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Check, User, Lock } from '@element-plus/icons-vue'
+import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
+const userStore = useUserStore()
 const formRef = ref()
 const loading = ref(false)
-const rememberMe = ref(false)
 
-// 表单数据
 const form = reactive({
   userAccount: '',
   userPassword: ''
 })
 
-// 验证规则
 const rules = reactive({
   userAccount: [
     { required: true, message: 'Please enter your account', trigger: 'blur' },
@@ -108,26 +103,27 @@ const rules = reactive({
   ]
 })
 
-// 登录处理
 const handleLogin = async () => {
   if (!formRef.value) return
 
   try {
     loading.value = true
+
+    // 表单校验
     await formRef.value.validate()
 
-    // 模拟登录API调用
-    await new Promise(resolve => setTimeout(resolve, 1500))
+    // 调用 store 登录
+    const userData = await userStore.login(form)
 
-    ElMessage.success('Login successful!')
+    // 成功
+    const username = userData.username || userData.userAccount || userData.name || form.userAccount
+    ElMessage.success(`Welcome back, ${username}!`)
+
+    // 跳转首页
     router.push('/')
-
   } catch (error) {
-    if (error.errorFields) {
-      ElMessage.error('Please fill in all required fields correctly')
-    } else {
-      ElMessage.error('Login failed. Please check your account and password.')
-    }
+    // 显示后端返回消息或网络错误
+    ElMessage.error(error.message || 'Login failed. Please check your account and password.')
   } finally {
     loading.value = false
   }
@@ -156,7 +152,6 @@ const handleLogin = async () => {
   min-height: 600px;
 }
 
-/* 左侧样式 */
 .login-left {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
@@ -197,7 +192,6 @@ const handleLogin = async () => {
   color: #10b981;
 }
 
-/* 右侧样式 */
 .login-right {
   padding: 50px 40px;
   display: flex;
@@ -245,25 +239,6 @@ const handleLogin = async () => {
   margin-bottom: 20px;
 }
 
-/* 表单选项 */
-.form-options {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 25px;
-  font-size: 14px;
-}
-
-.forgot-link {
-  color: #667eea;
-  text-decoration: none;
-}
-
-.forgot-link:hover {
-  text-decoration: underline;
-}
-
-/* 登录按钮 */
 .login-btn {
   width: 100%;
   height: 48px;
@@ -282,92 +257,6 @@ const handleLogin = async () => {
   box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
 }
 
-/* 分割线 */
-.divider {
-  position: relative;
-  text-align: center;
-  margin-bottom: 25px;
-  color: #9ca3af;
-  font-size: 14px;
-}
-
-.divider::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: #e5e7eb;
-}
-
-.divider span {
-  background: white;
-  padding: 0 15px;
-  position: relative;
-}
-
-/* 社交登录 */
-.social-login {
-  text-align: center;
-}
-
-.social-btn {
-  width: 100%;
-  height: 48px;
-  border: 1px solid #d1d5db;
-  border-radius: 12px;
-  background: white;
-  color: #374151;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  transition: all 0.3s ease;
-}
-
-.social-btn:hover {
-  border-color: #667eea;
-  background: #f8faff;
-  transform: translateY(-1px);
-}
-
-.social-icon {
-  width: 18px;
-  height: 18px;
-}
-
-/* 响应式设计 */
-@media (max-width: 768px) {
-  .login-container {
-    grid-template-columns: 1fr;
-    max-width: 400px;
-  }
-
-  .login-left {
-    padding: 30px 25px;
-    min-height: 200px;
-  }
-
-  .welcome-content h1 {
-    font-size: 24px;
-  }
-
-  .welcome-content p {
-    font-size: 14px;
-  }
-
-  .login-right {
-    padding: 30px 25px;
-  }
-
-  .form-header h2 {
-    font-size: 24px;
-  }
-}
-
-/* 自定义表单样式 */
 :deep(.el-input__wrapper) {
   border-radius: 12px;
   border: 1px solid #d1d5db;
@@ -386,10 +275,5 @@ const handleLogin = async () => {
 
 :deep(.el-form-item__error) {
   font-size: 12px;
-}
-
-:deep(.el-checkbox__label) {
-  font-size: 14px;
-  color: #6b7280;
 }
 </style>

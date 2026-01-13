@@ -22,7 +22,7 @@
         <el-select v-model="statusFilter" placeholder="Filter by status" clearable>
           <el-option label="Active" value="active" />
           <el-option label="Sold" value="sold" />
-          <el-option label="Draft" value="draft" />
+          <el-option label="Inactive" value="inactive" />
         </el-select>
       </div>
     </div>
@@ -76,6 +76,13 @@
               >
                 <el-icon><Check /></el-icon>
                 Mark Sold
+              </el-button>
+              <el-button
+                  @click="handleDeactivate(product)"
+                  class="action-btn"
+              >
+                <el-icon><CircleClose /></el-icon>
+                Deactivate
               </el-button>
               <el-button
                   @click="handleEdit(product)"
@@ -135,10 +142,10 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="Drafts" name="draft">
+      <el-tab-pane label="Inactive" name="inactive">
         <div class="products-grid">
           <div
-              v-for="product in draftProducts"
+              v-for="product in inactiveProducts"
               :key="product.id"
               class="product-card"
           >
@@ -166,11 +173,11 @@
             <div class="product-actions">
               <el-button
                   type="primary"
-                  @click="handlePublish(product)"
-                  class="action-btn"
+                  @click="handleReactivate(product)"
+              class="action-btn"
               >
-                <el-icon><Promotion /></el-icon>
-                Publish
+              <el-icon><Refresh /></el-icon>
+              Reactivate
               </el-button>
               <el-button
                   @click="handleEdit(product)"
@@ -188,120 +195,164 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Plus,
-  Search,
-  Location,
-  View,
-  ChatDotRound,
-  Star,
-  Check,
-  Promotion,
-  Edit
+  Plus, Search, Location, View, ChatDotRound, Star, Check, Promotion, Edit,Refresh
 } from '@element-plus/icons-vue'
+import myAxios from "@/plugins/request.js";
+
+
+const router = useRouter()
 
 const activeTab = ref('active')
 const searchKeyword = ref('')
 const statusFilter = ref('')
+const loading = ref(false)
 
-// 模拟商品数据
-const products = ref([
-  {
-    id: 1,
-    title: 'Basketball',
-    price: 25.00,
-    coverImage: 'https://i.postimg.cc/yNjYbJ8W/basketball.jpg',
-    campus: 'Main Campus',
-    viewCount: 156,
-    status: 'active',
-    createdAt: '2024-01-15',
-    messages: 3,
-    favorites: 8
-  },
-  {
-    id: 2,
-    title: 'Used Laptop ThinkPad',
-    price: 1200.00,
-    coverImage: 'https://i.postimg.cc/wBQ7Yf0j/laptop.jpg',
-    campus: 'Main Campus',
-    viewCount: 289,
-    status: 'active',
-    createdAt: '2024-01-10',
-    messages: 5,
-    favorites: 12
-  },
-  {
-    id: 3,
-    title: 'Java Programming Book',
-    price: 35.00,
-    coverImage: 'https://files.imagetourl.net/uploads/1763816291325-e83fc09d-b519-4633-b1bb-59a150ff3e28.jpg',
-    campus: 'Main Campus',
-    viewCount: 89,
-    status: 'sold',
-    createdAt: '2024-01-05',
-    soldAt: '2024-01-12',
-    soldPrice: 35.00
-  },
-  {
-    id: 4,
-    title: 'Smartphone iPhone 12',
-    price: 800.00,
-    coverImage: 'https://files.imagetourl.net/uploads/1763816270878-b14fc217-39b8-4052-ae6b-7ae2ef1a9e0c.jpg',
-    campus: 'Main Campus',
-    viewCount: 234,
-    status: 'draft',
-    createdAt: '2024-01-08'
-  }
-])
+// 真实商品列表
+const products = ref([])
 
-// 计算属性
-const activeProducts = computed(() => {
-  return products.value.filter(p => p.status === 'active')
-})
-
-const soldProducts = computed(() => {
-  return products.value.filter(p => p.status === 'sold')
-})
-
-const draftProducts = computed(() => {
-  return products.value.filter(p => p.status === 'draft')
-})
-
-// 操作处理
-const handleEdit = (product) => {
-  ElMessage.info(`Editing product: ${product.title}`)
+// ★ 核心：后端状态码 (Integer) 与 前端 Tab (String) 的映射
+// 假设后端: 1-Active, 2-Sold, 3-Draft/Inactive
+const STATUS_MAP = {
+  1: 'active',
+  2: 'sold',
+  3: 'inactive'
 }
 
+const REVERSE_STATUS_MAP = {
+  'active': 1,
+  'sold': 2,
+  'inactive': 3
+}
+
+// 图片处理函数 (与详情页保持一致)
+const processImage = (imgData) => {
+  if (!imgData) return 'https://cube.elemecdn.com/e/fd/0fc7d20532fdaf769a25683617711png.png';
+  let url = '';
+  try {
+    if (Array.isArray(imgData)) {
+      url = imgData[0];
+    } else {
+      // 尝试解析 JSON，取第一张作为封面
+      const parsed = JSON.parse(imgData);
+      url = Array.isArray(parsed) ? parsed[0] : parsed;
+    }
+  } catch (e) {
+    url = imgData; // 普通字符串
+  }
+
+  if (url.startsWith('data:image') || url.startsWith('http')) return url;
+  return url.startsWith('/') ? url : '/' + url;
+}
+
+// 加载我的商品
+// 修改后的加载函数
+const loadMyProducts = async () => {
+  loading.value = true;
+  try {
+    // 1. 这里的 res 已经是后端返回的 data 数组了（脱壳后）
+    const res = await myAxios.get('/goods/my/list');
+
+    // 2. 拦截器已处理 code !== 0 的报错，所以此处直接判断是否存在数据
+    if (res && Array.isArray(res)) {
+      products.value = res.map(item => ({
+        id: item.id,
+        title: item.title,
+        price: item.price,
+        coverImage: processImage(item.images || item.coverImage),
+        campus: item.campus || 'Main Campus',
+        viewCount: item.viewCount || 0,
+        status: STATUS_MAP[item.status] || 'inactive',
+        createdAt: item.createTime ? new Date(item.createTime).toLocaleDateString() : '',
+        messages: 0,
+        favorites: item.likeCount || 0
+      }));
+    }
+  } catch (error) {
+    // 拦截器会自动通过 ElMessage.error 弹出后端返回的 description
+    console.error('Failed to load products:', error);
+  } finally {
+    loading.value = false;
+  }
+}
+
+// 计算属性：前端过滤 (也可以改为点击 Tab 时重新请求后端)
+const filterProducts = (status) => {
+  return products.value.filter(p => {
+    // 1. 状态匹配
+    if (p.status !== status) return false;
+    // 2. 搜索关键词匹配
+    if (searchKeyword.value && !p.title.toLowerCase().includes(searchKeyword.value.toLowerCase())) {
+      return false;
+    }
+    return true;
+  })
+}
+
+const activeProducts = computed(() => filterProducts('active'))
+const soldProducts = computed(() => filterProducts('sold'))
+const inactiveProducts = computed(() => filterProducts('inactive'))
+
+// --- 操作逻辑 ---
+
+// 跳转编辑页
+const handleEdit = (product) => {
+  router.push(`/sell?id=${product.id}`);
+}
+
+// 标记为已售出
 const handleMarkAsSold = async (product) => {
   try {
     await ElMessageBox.confirm(
         `Are you sure you want to mark "${product.title}" as sold?`,
         'Mark as Sold',
-        {
-          confirmButtonText: 'Yes, Mark Sold',
-          cancelButtonText: 'Cancel',
-          type: 'warning'
-        }
+        { confirmButtonText: 'Yes, Mark Sold', cancelButtonText: 'Cancel', type: 'warning' }
     )
 
-    product.status = 'sold'
-    product.soldAt = new Date().toISOString().split('T')[0]
-    ElMessage.success('Product marked as sold!')
-  } catch {
-    // User cancelled
+    // 调用后端接口
+    // 注意：新的拦截器下，如果成功，返回的就是 res.data
+    const res = await myAxios.post('/goods/status', {
+      id: product.id,
+      status: 2
+    });
+
+    // 只要没有抛出错误，就代表业务成功（code 0 或 200）
+    ElMessage.success('Product marked as sold!');
+    product.status = 'sold';
+  } catch (e) {
+    if (e !== 'cancel') console.error(e);
+  }
+}
+
+const handleDeactivate = async (product) => {
+  await myAxios.post('/goods/status', { id: product.id, status: 3 });
+  product.status = 'inactive';
+  ElMessage.success('Product deactivated!');
+}
+
+
+const handleReactivate = async (product) => {
+  const res = await myAxios.post('/goods/status', {
+    id: product.id,
+    status: 1  // 重新上架
+  });
+
+  if (res.code === 0) {
+    product.status = 'active';
+    ElMessage.success('Product reactivated!');
   }
 }
 
 const handleView = (product) => {
-  ElMessage.info(`Viewing sold product: ${product.title}`)
+  router.push(`/goods/${product.id}`);
 }
 
-const handlePublish = (product) => {
-  product.status = 'active'
-  ElMessage.success('Product published successfully!')
-}
+onMounted(() => {
+  loadMyProducts();
+})
 </script>
 
 <style scoped>
@@ -571,6 +622,13 @@ const handlePublish = (product) => {
   .action-btn {
     flex: 1;
     min-width: 100px;
+  }
+  .product-status.inactive {
+    background: #6b7280;
+  }
+
+  .product-status.draft {
+    background: #f59e0b;
   }
 }
 </style>

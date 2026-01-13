@@ -1,476 +1,362 @@
 <template>
-  <div class="home">
-    <!-- Carousel -->
-    <el-carousel height="400px" :interval="4000">
-      <el-carousel-item v-for="item in carouselItems" :key="item.id">
-        <div class="carousel-image-container">
-          <img :src="item.image" :alt="item.title" class="carousel-image" />
-        </div>
-      </el-carousel-item>
-    </el-carousel>
-
-    <!-- Categories -->
-    <div class="category-section">
-      <h2 class="section-title">Categories</h2>
-      <div class="category-grid">
-        <div
-            v-for="category in categories"
-            :key="category.id"
-            class="category-card"
-            @click="handleCategoryClick(category.id)"
-        >
-          <img :src="category.icon" :alt="category.name" class="category-icon" />
-          <span>{{ category.name }}</span>
-        </div>
+  <div class="home-page">
+    <div class="hero-section">
+      <div class="hero-content">
+        <h1>Discover USM's Best Second-hand Deals</h1>
+        <p>Buy, sell, and trade within your campus community</p>
+        <el-button type="primary" size="large" @click="scrollToProducts">Start Exploring</el-button>
       </div>
     </div>
 
-    <!-- Hot Products -->
-    <div class="hot-goods-section">
-      <div class="section-header">
-        <h2 class="section-title">Hot Products</h2>
-        <el-button type="primary" text @click="$router.push('/goods')">
-          View All
-          <el-icon><ArrowRight /></el-icon>
-        </el-button>
+    <div class="category-filter">
+      <div
+          class="filter-item"
+          :class="{ active: activeCategory === 'all' }"
+          @click="handleCategorySelect('all')"
+      >
+        All
       </div>
-      <div class="goods-grid">
+      <div
+          v-for="cat in categories"
+          :key="cat.id"
+          class="filter-item"
+          :class="{ active: activeCategory === cat.id }"
+          @click="handleCategorySelect(cat.id)"
+      >
+        {{ cat.name }}
+      </div>
+    </div>
+
+    <div class="products-container" id="products-anchor" v-loading="loading">
+
+      <el-empty v-if="!loading && products.length === 0" description="No items found" />
+
+      <div v-else class="products-grid">
         <div
-            v-for="goods in hotGoods"
-            :key="goods.id"
-            class="goods-card"
-            @click="$router.push(`/goods/${goods.id}`)"
+            v-for="item in products"
+            :key="item.id"
+            class="product-card"
+            @click="goToDetail(item.id)"
         >
-          <div class="goods-image">
-            <img :src="goods.coverImage" :alt="goods.title" />
-            <div class="goods-status available">Available</div>
+          <div class="card-image">
+            <img :src="item.coverImage" :alt="item.title" />
+            <span class="condition-tag">{{ item.conditionText }}</span>
+            <span class="campus-tag">{{ item.campus }}</span>
           </div>
-          <div class="goods-info">
-            <h3 class="goods-title">{{ goods.title }}</h3>
-            <p class="goods-price">RM{{ goods.price }}</p>
-            <div class="goods-meta">
-              <span class="campus">{{ goods.campus }}</span>
-              <span class="views">
-                <el-icon><View /></el-icon>
-                {{ goods.viewCount }}
+
+          <div class="card-info">
+            <div class="price-row">
+              <span class="price">RM {{ item.price.toFixed(2) }}</span>
+              <span class="likes">
+                 <el-icon><Star /></el-icon> {{ item.likeCount || 0 }}
               </span>
             </div>
-            <div class="seller-info">
-              <img :src="goods.userAvatar" :alt="goods.userName" class="seller-avatar" />
-              <span class="seller-name">{{ goods.userName }}</span>
+            <h3 class="title" :title="item.title">{{ item.title }}</h3>
+            <div class="seller-row">
+              <el-avatar :size="20" :src="item.userAvatar" />
+              <span class="seller-name">{{ item.userName }}</span>
             </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Features -->
-    <div class="feature-section">
-      <h2 class="section-title">Features</h2>
-      <div class="feature-grid">
-        <div class="feature-item">
-          <el-icon size="48" color="#67C23A"><Lock /></el-icon>
-          <h3>Secure Transactions</h3>
-          <p>Verified identities ensure safe trading</p>
-        </div>
-        <div class="feature-item">
-          <el-icon size="48" color="#E6A23C"><School /></el-icon>
-          <h3>Campus Exclusive</h3>
-          <p>Only for USM students and staff</p>
-        </div>
-        <div class="feature-item">
-          <el-icon size="48" color="#409EFF"><ChatDotRound /></el-icon>
-          <h3>Instant Communication</h3>
-          <p>Built-in chat system for easy contact</p>
-        </div>
-        <div class="feature-item">
-          <el-icon size="48" color="#F56C6C"><Box /></el-icon>
-          <h3>Multiple Delivery</h3>
-          <p>Support pickup and express delivery</p>
-        </div>
+      <div class="pagination-container" v-if="total > 0">
+        <el-pagination
+            background
+            layout="prev, pager, next"
+            :total="total"
+            :page-size="queryParams.pageSize"
+            @current-change="handlePageChange"
+        />
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
-import {
-  ArrowRight,
-  View,
-  Lock,
-  School,
-  ChatDotRound,
-} from '@element-plus/icons-vue'
+import { ref, reactive, onMounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import { Star } from '@element-plus/icons-vue'
+import { getGoodsList } from '@/api/goods'      // 引入商品API
+import { listCategories } from '@/api/category' // 引入分类API
 
 const router = useRouter()
+const route = useRoute()
 
-// Carousel data
-const carouselItems = ref([
-  {
-    id: 1,
-    image: 'https://files.imagetourl.net/uploads/1763815584727-f4862246-02c8-4807-94e7-f289876cb6bf.png',
-  },
-  {
-    id: 2,
-    image: 'https://files.imagetourl.net/uploads/1763815623999-123acd52-6231-41b5-ae70-8b7627254e92.jpg',
-  },
-  {
-    id: 3,
-    image: 'https://files.imagetourl.net/uploads/1763815654486-d3db784d-bc5d-41be-bde3-e3ac2d20c087.jpg',
+// 状态变量
+const loading = ref(false)
+const products = ref([])
+const categories = ref([])
+const activeCategory = ref('all')
+const total = ref(0)
+
+// 查询参数
+const queryParams = reactive({
+  pageNum: 1,
+  pageSize: 12,
+  keyword: '',
+  categoryId: null
+})
+
+// --- 核心逻辑 1: 加载分类 ---
+const loadCategories = async () => {
+  try {
+    const res = await listCategories()
+    categories.value = res
+  } catch (error) {
+    console.error('Failed to load categories', error)
   }
-])
-
-// Categories data
-const categories = ref([
-  {
-    id: 1,
-    name: 'Textbooks',
-    icon: 'https://cdn-icons-png.flaticon.com/512/2702/2702134.png'
-  },
-  {
-    id: 2,
-    name: 'Electronics',
-    icon: 'https://cdn-icons-png.flaticon.com/512/9018/9018746.png'
-  },
-  {
-    id: 3,
-    name: 'Transportation',
-    icon: 'https://cdn-icons-png.flaticon.com/512/2972/2972185.png'
-  },
-  {
-    id: 4,
-    name: 'Daily Supplies',
-    icon: 'https://cdn-icons-png.flaticon.com/512/3144/3144456.png'
-  },
-  {
-    id: 5,
-    name: 'Clothing',
-    icon: 'https://cdn-icons-png.flaticon.com/512/892/892458.png'
-  },
-  {
-    id: 6,
-    name: 'Sports Equipment',
-    icon: 'https://cdn-icons-png.flaticon.com/512/857/857422.png'
-  }
-])
-
-// Hot products data
-const hotGoods = ref([
-  {
-    id: 1,
-    title: 'Basketball',
-    price: 25.00,
-    coverImage: 'https://i.postimg.cc/yNjYbJ8W/basketball.jpg',
-    campus: 'Main Campus',
-    viewCount: 156,
-    userName: 'Bob',
-    userAvatar: 'https://files.imagetourl.net/uploads/1763816168510-47145212-c6b1-4993-b848-fffaa4d2c8c5.jpg'
-  },
-  {
-    id: 2,
-    title: 'Used Laptop ThinkPad',
-    price: 1200.00,
-    coverImage: 'https://i.postimg.cc/wBQ7Yf0j/laptop.jpg',
-    campus: 'Main Campus',
-    viewCount: 289,
-    userName: 'Siti',
-    userAvatar: 'https://files.imagetourl.net/uploads/1763816168510-47145212-c6b1-4993-b848-fffaa4d2c8c5.jpg'
-  },
-  {
-    id: 3,
-    title: 'Bicycle',
-    price: 280.00,
-    coverImage: 'https://files.imagetourl.net/uploads/1763816237198-85d345c2-e7ee-4a15-8fc4-b82adf101b1e.jpg',
-    campus: 'Engineering Campus',
-    viewCount: 342,
-    userName: 'Wang wei',
-    userAvatar: 'https://files.imagetourl.net/uploads/1763816168510-47145212-c6b1-4993-b848-fffaa4d2c8c5.jpg'
-  },
-  {
-    id: 4,
-    title: 'Java Programming Book',
-    price: 35.00,
-    coverImage: 'https://files.imagetourl.net/uploads/1763816291325-e83fc09d-b519-4633-b1bb-59a150ff3e28.jpg',
-    campus: 'Main Campus',
-    viewCount: 89,
-    userName: 'Tan Wei Ming',
-    userAvatar: 'https://files.imagetourl.net/uploads/1763816168510-47145212-c6b1-4993-b848-fffaa4d2c8c5.jpg'
-  },
-  {
-    id: 5,
-    title: 'Smartphone iPhone 12',
-    price: 800.00,
-    coverImage: 'https://files.imagetourl.net/uploads/1763816270878-b14fc217-39b8-4052-ae6b-7ae2ef1a9e0c.jpg',
-    campus: 'Main Campus',
-    viewCount: 234,
-    userName: 'Chen Qi',
-    userAvatar: 'https://files.imagetourl.net/uploads/1763816168510-47145212-c6b1-4993-b848-fffaa4d2c8c5.jpg'
-  },
-  {
-    id: 6,
-    title: 'Dorm Refrigerator',
-    price: 320.00,
-    coverImage: 'https://files.imagetourl.net/uploads/1763816253332-bab3874d-329f-4452-a6dc-73b36a1fed7b.jpg',
-    campus: 'Main Campus',
-    viewCount: 167,
-    userName: 'Lina',
-    userAvatar: 'https://files.imagetourl.net/uploads/1763816168510-47145212-c6b1-4993-b848-fffaa4d2c8c5.jpg'
-  },
-  {
-    id: 7,
-    title: 'Shoes',
-    price: 120.00,
-    coverImage: 'https://i.postimg.cc/rw6m0XHp/shoes.jpg',
-    campus: 'Main Campus',
-    viewCount: 167,
-    userName: 'Ahmad',
-    userAvatar: 'https://files.imagetourl.net/uploads/1763816168510-47145212-c6b1-4993-b848-fffaa4d2c8c5.jpg'
-  },
-  {
-    id: 8,
-    title: 'T-shirt',
-    price: 40.00,
-    coverImage: ' https://i.postimg.cc/rwcDZ2Nv/xia-zai-(2).jpg',
-    campus: 'Main Campus',
-    viewCount: 167,
-    userName: 'Lin Yue',
-    userAvatar: 'https://files.imagetourl.net/uploads/1763816168510-47145212-c6b1-4993-b848-fffaa4d2c8c5.jpg'
-  }
-])
-
-// Category click handler
-const handleCategoryClick = (categoryId) => {
-  router.push(`/goods?categoryId=${categoryId}`)
 }
+
+// --- 核心逻辑 2: 加载商品列表 ---
+const loadProducts = async () => {
+  loading.value = true
+  try {
+    // 检查路由里有没有搜索关键词
+    if (route.query.keyword) {
+      queryParams.keyword = route.query.keyword
+    }
+
+    const res = await getGoodsList(queryParams)
+
+    // 处理后端返回的数据
+    // 后端返回的是 IPage 对象，列表在 records 字段里
+    const rawList = res.records || []
+    total.value = res.total || 0
+
+    //  数据转换 (Data Mapping)
+    products.value = rawList.map(item => {
+      let cover = 'https://placehold.co/300x300?text=No+Image'
+
+      if (item.images) {
+        try {
+          // 尝试解析 JSON
+          const imgArray = JSON.parse(item.images)
+          if (Array.isArray(imgArray) && imgArray.length > 0) {
+            cover = imgArray[0] // 取第一张图
+          }
+        } catch (e) {
+          // 如果解析失败（或者已经是普通字符串），直接用
+          // 这里的逻辑是为了兼容某些可能直接存了 URL 字符串的情况
+          if (item.images && item.images.startsWith('http')) {
+            cover = item.images
+          }
+        }
+      }
+
+      // 2. 处理成色 (Number -> Text)
+      const conditionMap = { 1: 'New', 2: 'Like New', 3: 'Good', 4: 'Fair' }
+
+      return {
+        ...item,
+        coverImage: cover,
+        conditionText: conditionMap[item.condition] || 'Good',
+        userAvatar: item.sellerAvatar || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png', // 默认头像
+        userName: item.sellerName || 'User'
+      }
+    })
+
+  } catch (error) {
+    console.error('Failed to load products', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+// 分类点击
+const handleCategorySelect = (id) => {
+  activeCategory.value = id
+  queryParams.categoryId = id === 'all' ? null : id
+  queryParams.pageNum = 1 // 重置到第一页
+  loadProducts()
+}
+
+// 翻页
+const handlePageChange = (val) => {
+  queryParams.pageNum = val
+  loadProducts()
+  scrollToProducts()
+}
+
+// 跳转详情
+const goToDetail = (id) => {
+  router.push(`/goods/${id}`)
+}
+
+// 滚动到商品区
+const scrollToProducts = () => {
+  document.getElementById('products-anchor')?.scrollIntoView({ behavior: 'smooth' })
+}
+
+// 监听搜索词变化
+watch(() => route.query.keyword, (newVal) => {
+  queryParams.keyword = newVal || ''
+  loadProducts()
+})
+
+// 页面初始化
+onMounted(() => {
+  loadCategories()
+  loadProducts()
+})
 </script>
 
 <style scoped>
-.home {
+.home-page {
+  min-height: 100vh;
+  background-color: #f9fafb;
+}
+
+/* Banner 样式 */
+.hero-section {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 80px 20px;
+  text-align: center;
+  margin-bottom: 30px;
+}
+.hero-content h1 { font-size: 3rem; margin-bottom: 1rem; font-weight: 700; }
+.hero-content p { font-size: 1.25rem; margin-bottom: 2rem; opacity: 0.9; }
+
+/* 分类筛选条 */
+.category-filter {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  flex-wrap: wrap;
+  padding: 0 20px;
+  margin-bottom: 30px;
+}
+.filter-item {
+  padding: 8px 20px;
+  background: white;
+  border-radius: 20px;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  transition: all 0.3s;
+  font-weight: 500;
+  color: #6b7280;
+}
+.filter-item:hover, .filter-item.active {
+  background: #667eea;
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(102, 126, 234, 0.3);
+}
+
+/* 商品网格布局 */
+.products-container {
   max-width: 1200px;
   margin: 0 auto;
+  padding: 0 20px 60px;
 }
-
-/* Carousel styles */
-.carousel-image-container {
-  position: relative;
-  width: 100%;
-  height: 400px;
-  overflow: hidden;
-}
-
-.carousel-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
-}
-
-/* Categories section */
-.category-section {
-  margin: 40px 0;
-}
-
-.section-title {
-  font-size: 1.8rem;
-  margin-bottom: 20px;
-  color: #333;
-  text-align: center;
-}
-
-.category-grid {
+.products-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 20px;
-  margin-top: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 25px;
 }
 
-.category-card {
+/* 商品卡片样式 */
+.product-card {
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  cursor: pointer;
+  transition: all 0.3s ease;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 20px;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
-  cursor: pointer;
-  transition: all 0.3s ease;
 }
-
-.category-card:hover {
+.product-card:hover {
   transform: translateY(-5px);
-  box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.15);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.1);
 }
 
-.category-icon {
-  width: 48px;
-  height: 48px;
-  margin-bottom: 12px;
-  object-fit: contain;
-}
-
-.category-card span {
-  font-weight: 500;
-  color: #666;
-}
-
-/* Hot products section */
-.hot-goods-section {
-  margin: 40px 0;
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.goods-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 20px;
-}
-
-.goods-card {
-  background: white;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.goods-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.15);
-}
-
-.goods-image {
+.card-image {
   position: relative;
   height: 200px;
-  overflow: hidden;
+  width: 100%;
+  background: #f3f4f6;
 }
-
-.goods-image img {
+.card-image img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
-
-.goods-status {
+.condition-tag {
   position: absolute;
   top: 10px;
   right: 10px;
+  background: rgba(0,0,0,0.6);
+  color: white;
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 12px;
-  color: white;
-  background: #67C23A;
 }
-
-.goods-info {
-  padding: 15px;
-}
-
-.goods-title {
-  font-size: 1.1rem;
+.campus-tag {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  background: rgba(255,255,255,0.9);
+  color: #374151;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
   font-weight: 500;
-  margin-bottom: 8px;
-  color: #333;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 
-.goods-price {
-  font-size: 1.3rem;
-  font-weight: bold;
-  color: #F56C6C;
-  margin-bottom: 8px;
+.card-info {
+  padding: 16px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
-
-.goods-meta {
+.price-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
-  font-size: 0.9rem;
-  color: #909399;
+  margin-bottom: 8px;
 }
-
-.goods-meta .views {
+.price {
+  color: #ef4444;
+  font-size: 18px;
+  font-weight: 700;
+}
+.likes {
+  color: #9ca3af;
+  font-size: 13px;
   display: flex;
   align-items: center;
   gap: 4px;
 }
+.title {
+  font-size: 16px;
+  color: #1f2937;
+  margin-bottom: 12px;
+  line-height: 1.4;
+  /* 标题只显示两行 */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  flex: 1;
+}
 
-.seller-info {
+.seller-row {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid #f3f4f6;
 }
-
-.seller-avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  object-fit: cover;
-}
-
 .seller-name {
-  font-size: 0.9rem;
-  color: #666;
+  font-size: 13px;
+  color: #6b7280;
 }
 
-/* Features section */
-.feature-section {
-  margin: 40px 0;
-}
-
-.feature-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 30px;
-  margin-top: 30px;
-}
-
-.feature-item {
-  text-align: center;
-  padding: 30px 20px;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
-}
-
-.feature-item h3 {
-  margin: 15px 0 10px;
-  font-size: 1.2rem;
-  color: #333;
-}
-
-.feature-item p {
-  color: #666;
-  line-height: 1.5;
-}
-
-/* Responsive design */
-@media (max-width: 768px) {
-  .category-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  .goods-grid {
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  }
-}
-
-/* Fallback styles for image loading */
-.category-icon:before,
-.goods-image img:before {
-  content: "📦";
-  font-size: 24px;
+.pagination-container {
+  margin-top: 40px;
+  display: flex;
+  justify-content: center;
 }
 </style>

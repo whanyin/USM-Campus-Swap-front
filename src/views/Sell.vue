@@ -13,7 +13,6 @@
         label-position="top"
         class="sell-form"
     >
-      <!-- 基本信息 -->
       <div class="form-section">
         <h2>Basic Information</h2>
 
@@ -39,7 +38,6 @@
         </el-form-item>
       </div>
 
-      <!-- 价格和分类 -->
       <div class="form-section">
         <h2>Price & Category</h2>
 
@@ -56,9 +54,9 @@
             />
           </el-form-item>
 
-          <el-form-item label="Category" prop="category" class="category-item">
+          <el-form-item label="Category" prop="categoryId" class="category-item">
             <el-select
-                v-model="form.category"
+                v-model="form.categoryId"
                 placeholder="Select category"
                 size="large"
                 style="width: 100%"
@@ -75,15 +73,14 @@
 
         <el-form-item label="Condition" prop="condition">
           <el-radio-group v-model="form.condition">
-            <el-radio label="New" border>New</el-radio>
-            <el-radio label="Like New" border>Like New</el-radio>
-            <el-radio label="Good" border>Good</el-radio>
-            <el-radio label="Fair" border>Fair</el-radio>
+            <el-radio :label="1" border>New</el-radio>
+            <el-radio :label="2" border>Like New</el-radio>
+            <el-radio :label="3" border>Good</el-radio>
+            <el-radio :label="4" border>Fair</el-radio>
           </el-radio-group>
         </el-form-item>
       </div>
 
-      <!-- 图片上传 -->
       <div class="form-section">
         <h2>Photos</h2>
         <p class="section-subtitle">Add clear photos of your item (up to 8 images)</p>
@@ -93,9 +90,7 @@
               v-model:file-list="fileList"
               action="#"
               list-type="picture-card"
-              :auto-upload="false"
-              :on-change="handleImageChange"
-              :on-remove="handleRemove"
+              :http-request="customUpload"
               :limit="8"
               accept="image/*"
           >
@@ -104,40 +99,28 @@
         </el-form-item>
       </div>
 
-      <!-- 配送方式 -->
       <div class="form-section">
         <h2>Delivery Method</h2>
 
-        <el-form-item label="Available Delivery Options" prop="deliveryMethods">
-          <el-checkbox-group v-model="form.deliveryMethods">
-            <el-checkbox label="pickup" border>
+        <el-form-item label="Delivery Option" prop="deliveryMethod">
+          <el-radio-group v-model="form.deliveryMethod">
+            <el-radio :label="1" border>
               <div class="delivery-option">
-                <div class="option-icon">
-                  <el-icon><Location /></el-icon>
-                </div>
-                <div class="option-content">
-                  <div class="option-title">Self Pickup</div>
-                  <div class="option-desc">Buyer picks up from your location</div>
-                </div>
+                <el-icon><Location /></el-icon>
+                <span>Self Pickup</span>
               </div>
-            </el-checkbox>
-            <el-checkbox label="delivery" border>
+            </el-radio>
+            <el-radio :label="2" border>
               <div class="delivery-option">
-                <div class="option-icon">
-                  <el-icon><Box /></el-icon>
-                </div>
-                <div class="option-content">
-                  <div class="option-title">Delivery</div>
-                  <div class="option-desc">You deliver to buyer (additional cost may apply)</div>
-                </div>
+                <el-icon><Box /></el-icon>
+                <span>Delivery</span>
               </div>
-            </el-checkbox>
-          </el-checkbox-group>
+            </el-radio>
+          </el-radio-group>
         </el-form-item>
 
-        <!-- 自取地点 -->
         <el-form-item
-            v-if="form.deliveryMethods.includes('pickup')"
+            v-if="form.deliveryMethod === 1"
             label="Pickup Location"
             prop="pickupLocation"
             class="pickup-location"
@@ -148,57 +131,22 @@
               size="large"
               style="width: 100%"
           >
-            <el-option
-                v-for="location in pickupLocations"
-                :key="location.value"
-                :label="location.label"
-                :value="location.value"
-            />
+            <el-option label="Main Campus - Student Center" value="Main Campus - Student Center" />
+            <el-option label="Main Campus - Library" value="Main Campus - Library" />
+            <el-option label="Engineering Campus" value="Engineering Campus" />
+            <el-option label="Health Campus" value="Health Campus" />
+            <el-option label="Other" value="Other" />
           </el-select>
-          <p class="location-note">Buyer will arrange pickup time with you after purchase</p>
         </el-form-item>
       </div>
 
-      <!-- 支付方式 -->
       <div class="form-section">
-        <h2>Payment Method</h2>
-        <p class="section-subtitle">Choose how you want to receive payment</p>
-
-        <el-form-item label="Preferred Payment" prop="paymentMethod">
-          <el-radio-group v-model="form.paymentMethod">
-            <el-radio label="balance" border>
-              <div class="payment-option">
-                <el-icon><Wallet /></el-icon>
-                <div>
-                  <div class="option-title">Platform Balance</div>
-                </div>
-              </div>
-            </el-radio>
-            <el-radio label="cash" border>
-              <div class="payment-option">
-                <el-icon><Money /></el-icon>
-                <div>
-                  <div class="option-title">Cash on Delivery</div>
-                </div>
-              </div>
-            </el-radio>
-          </el-radio-group>
-        </el-form-item>
-
-        <!-- 余额显示 -->
-        <div v-if="form.paymentMethod === 'balance'" class="balance-info">
-          <div class="balance-card">
-            <div class="balance-header">
-              <el-icon><Wallet /></el-icon>
-              <span>Your Balance</span>
-            </div>
-            <div class="balance-amount">RM {{ userBalance.toFixed(2) }}</div>
-            <p class="balance-note">Payment will be added to your balance after successful transaction</p>
-          </div>
-        </div>
+        <h2>Contact & Payment</h2>
+        <p style="color: #666; font-size: 14px;">
+          Buyers will contact you via platform messages to arrange payment and delivery.
+        </p>
       </div>
 
-      <!-- 发布按钮 -->
       <div class="form-actions">
         <el-button
             type="primary"
@@ -210,144 +158,181 @@
           <el-icon><Promotion /></el-icon>
           Publish Item
         </el-button>
-        <el-button
-            size="large"
-            @click="saveAsDraft"
-            class="draft-btn"
-        >
-          <el-icon><DocumentAdd /></el-icon>
-          Save as Draft
-        </el-button>
       </div>
     </el-form>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import {
-  Plus,
-  Location,
-  Box,
-  Wallet,
-  Money,
-  Promotion,
-  DocumentAdd
-} from '@element-plus/icons-vue'
+import { Plus, Location, Box, Promotion } from '@element-plus/icons-vue'
+import { publishGoods } from '@/api/goods'
+import { listCategories } from '@/api/category'
+import myAxios from "@/plugins/request.js" // 确保引入了你的 axios 实例
 
 const router = useRouter()
 const formRef = ref()
 const loading = ref(false)
+
+// 1. 文件列表 (Element Plus 自动维护这个列表)
+const fileList = ref([])
 
 // 表单数据
 const form = reactive({
   title: '',
   description: '',
   price: null,
-  category: '',
-  condition: 'Good',
-  images: [],
-  deliveryMethods: ['pickup'], // 默认选择自取
+  categoryId: null,
+  condition: 1,      // 1-New, 2-Like New...
+  deliveryMethod: 1, // 1-Pickup, 2-Delivery
   pickupLocation: '',
-  paymentMethod: 'balance'
+  contactTypes: [1], // 默认站内信
 })
 
 // 验证规则
 const rules = reactive({
   title: [
     { required: true, message: 'Please enter item title', trigger: 'blur' },
-    { min: 5, max: 60, message: 'Title should be 5-60 characters', trigger: 'blur' }
+    { min: 0, max: 60, message: 'Title should be 5-60 characters', trigger: 'blur' }
   ],
   description: [
     { required: true, message: 'Please enter item description', trigger: 'blur' },
-    { min: 10, max: 500, message: 'Description should be 10-500 characters', trigger: 'blur' }
+    { min: 0, max: 500, message: 'Description should be 10-500 characters', trigger: 'blur' }
   ],
   price: [
     { required: true, message: 'Please enter item price', trigger: 'blur' },
     { type: 'number', min: 0.01, message: 'Price must be greater than 0', trigger: 'blur' }
   ],
-  category: [
+  categoryId: [
     { required: true, message: 'Please select category', trigger: 'change' }
   ],
-  condition: [
-    { required: true, message: 'Please select condition', trigger: 'change' }
-  ],
-  deliveryMethods: [
-    { required: true, message: 'Please select at least one delivery method', trigger: 'change' }
-  ],
-  pickupLocation: [
-    { required: true, message: 'Please select pickup location', trigger: 'change' }
-  ],
-  paymentMethod: [
-    { required: true, message: 'Please select payment method', trigger: 'change' }
+  deliveryMethod: [
+    { required: true, message: 'Please select delivery method', trigger: 'change' }
   ]
 })
 
-// 分类选项
-const categories = ref([
-  { label: 'Textbooks', value: 'textbooks' },
-  { label: 'Electronics', value: 'electronics' },
-  { label: 'Transportation', value: 'transportation' },
-  { label: 'Daily Supplies', value: 'daily_supplies' },
-  { label: 'Clothing', value: 'clothing' },
-  { label: 'Sports Equipment', value: 'sports' },
-  { label: 'Furniture', value: 'furniture' },
-  { label: 'Others', value: 'others' }
-])
-
-// 自取地点选项
-const pickupLocations = ref([
-  { label: 'Main Campus - Student Center', value: 'main_student_center' },
-  { label: 'Main Campus - Library', value: 'main_library' },
-  { label: 'Main Campus - Cafeteria', value: 'main_cafeteria' },
-  { label: 'Engineering Campus - Main Building', value: 'eng_main' },
-  { label: 'Engineering Campus - Library', value: 'eng_library' },
-  { label: 'Health Campus - Main Entrance', value: 'health_main' },
-  { label: 'Other (specify in description)', value: 'other' }
-])
-
-// 用户余额
-const userBalance = ref(156.80)
-
-// 图片上传
-const fileList = ref([])
-
-const handleImageChange = (file, fileList) => {
-  form.images = fileList.map(f => f.raw || f.url)
+// 动态获取分类
+const loadCategories = async () => {
+  try {
+    // 拦截器处理后，res 直接就是分类列表数组
+    const res = await myAxios.get('/category/list')
+    if (res) {
+      categories.value = res.map(cat => ({
+        label: cat.name,
+        value: cat.id
+      }))
+    }
+  } catch (error) {
+    console.error('Failed to load categories', error)
+  }
 }
 
-const handleRemove = (file, fileList) => {
-  form.images = fileList.map(f => f.raw || f.url)
+onMounted(() => {
+  loadCategories()
+})
+
+const customUpload = async (options) => {
+  const { file, onSuccess, onError } = options
+
+  const formData = new FormData()
+  formData.append('file', file)
+
+  try {
+    const res = await myAxios.post('/file/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+
+    if (res.code === 0) {
+      const url = res.data   // 服务器返回的真实图片URL
+
+      // 关键：找到 el-upload 维护的那个 file 对象
+      const targetFile = fileList.value.find(f => f.uid === file.uid)
+
+      if (targetFile) {
+        targetFile.url = url        // ⭐ 必须写入 url
+        targetFile.status = 'success'
+      }
+
+      onSuccess(url)
+      ElMessage.success('Image uploaded')
+    } else {
+      onError(new Error(res.message))
+      ElMessage.error(res.message)
+    }
+  } catch (error) {
+    onError(error)
+    ElMessage.error('Upload failed')
+  }
 }
 
-// 表单提交
+
 const submitForm = async () => {
   if (!formRef.value) return
+
+  // 检查是否还有图片正在上传中 (status === 'uploading')
+  // 如果用户刚选了图就立刻点发布，url 还没回来，必须拦住
+  const isUploading = fileList.value.some(file => file.status === 'uploading')
+  if (isUploading) {
+    ElMessage.warning('Images are still uploading. Please wait...')
+    return
+  }
 
   try {
     loading.value = true
     await formRef.value.validate()
 
-    // 模拟发布过程
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    const finalImages = fileList.value
+        .map(file => file.url)
+        .filter(url => url && !url.startsWith('blob:'))
 
-    ElMessage.success('Item published successfully!')
-    router.push('/my-products')
+    console.log("提交给后端的 URL:", finalImages)
+
+    // 再次检查
+    if (finalImages.length === 0 && fileList.value.length > 0) {
+      // 如果 fileList 有东西，但提取出来是空的，说明全是 blob 且没 response
+      ElMessage.error("Image upload processing failed. Please delete the image and upload again.")
+      loading.value = false
+      return
+    }
+
+    // 如果用户根本没传图 (根据业务需求，如果允许不传图，这里就不报错)
+    // if (finalImages.length === 0) { ... }
+
+    // 3. 构造请求数据
+    const requestData = {
+      title: form.title,
+      description: form.description,
+      price: form.price,
+      categoryId: form.categoryId,
+      condition: form.condition,
+      images: finalImages,
+      // 封面图逻辑
+      coverImage: finalImages.length > 0 ? finalImages[0] : '',
+      campus: 'Main Campus',
+      contactTypes: [1],
+      deliveryMethod: form.deliveryMethod,
+      pickupLocation: form.deliveryMethod === 1 ? form.pickupLocation : ''
+    }
+
+    const res = await myAxios.post('/goods/publish', requestData)
+
+    if (res) {
+      ElMessage.success('Item published successfully!')
+      router.push('/')
+    }
 
   } catch (error) {
-    ElMessage.error('Please fill in all required fields correctly')
+    console.error(error)
+    if (error.message) {
+      ElMessage.error(error.message)
+    } else {
+      ElMessage.error('Please fill in all required fields')
+    }
   } finally {
     loading.value = false
   }
-}
-
-// 保存草稿
-const saveAsDraft = () => {
-  ElMessage.info('Item saved as draft')
-  // 这里可以添加保存草稿的逻辑
-  router.push('/my-products')
 }
 </script>
 
@@ -363,17 +348,6 @@ const saveAsDraft = () => {
   margin-bottom: 40px;
 }
 
-.page-header h1 {
-  font-size: 32px;
-  margin-bottom: 8px;
-  color: #1f2937;
-}
-
-.page-header p {
-  color: #6b7280;
-  font-size: 16px;
-}
-
 .sell-form {
   background: white;
   padding: 40px;
@@ -387,204 +361,26 @@ const saveAsDraft = () => {
   border-bottom: 1px solid #e5e7eb;
 }
 
-.form-section:last-of-type {
-  border-bottom: none;
-  margin-bottom: 0;
-}
-
-.form-section h2 {
-  font-size: 20px;
-  font-weight: 600;
-  margin-bottom: 20px;
-  color: #1f2937;
-}
-
-.section-subtitle {
-  color: #6b7280;
-  margin-bottom: 20px;
-  font-size: 14px;
-}
-
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 20px;
 }
 
-.price-item,
-.category-item {
-  margin-bottom: 0;
-}
-
-/* 配送选项样式 */
 .delivery-option {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
-  min-width: 200px;
-}
-
-.delivery-option .el-icon {
-  font-size: 24px;
-  color: #409eff;
-}
-
-.option-title {
-  font-weight: 500;
-  margin-bottom: 4px;
-}
-
-.option-desc {
-  font-size: 12px;
-  color: #6b7280;
-}
-
-/* 自取地点 */
-.pickup-location {
-  margin-top: 20px;
-}
-
-.location-note {
-  font-size: 12px;
-  color: #6b7280;
-  margin-top: 8px;
-  margin-bottom: 0;
-}
-
-/* 支付选项样式 */
-.payment-option {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px;
-  min-width: 250px;
-}
-
-.payment-option .el-icon {
-  font-size: 24px;
-}
-
-/* 余额信息 */
-.balance-info {
-  margin-top: 20px;
-}
-
-.balance-card {
-  background: #f8f9fa;
-  padding: 20px;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
-}
-
-.balance-header {
-  display: flex;
-  align-items: center;
   gap: 8px;
-  margin-bottom: 12px;
-  font-weight: 500;
-  color: #1f2937;
 }
 
-.balance-header .el-icon {
-  color: #67c23a;
-}
-
-.balance-amount {
-  font-size: 24px;
-  font-weight: bold;
-  color: #67c23a;
-  margin-bottom: 8px;
-}
-
-.balance-note {
-  font-size: 12px;
-  color: #6b7280;
-  margin: 0;
-}
-
-/* 发布按钮 */
 .form-actions {
   text-align: center;
   margin-top: 40px;
-  padding-top: 30px;
-  border-top: 1px solid #e5e7eb;
-}
-
-.publish-btn,
-.draft-btn {
-  min-width: 160px;
-  height: 48px;
-  font-size: 16px;
-  margin: 0 8px;
 }
 
 .publish-btn {
-  background-color: #67c23a;
-  border-color: #67c23a;
-}
-
-.publish-btn:hover {
-  background-color: #5daf34;
-  border-color: #5daf34;
-}
-
-/* 响应式设计 */
-@media (max-width: 768px) {
-  .sell-page {
-    padding: 10px;
-  }
-
-  .sell-form {
-    padding: 20px;
-  }
-
-  .form-row {
-    grid-template-columns: 1fr;
-    gap: 0;
-  }
-
-  .delivery-option,
-  .payment-option {
-    min-width: auto;
-  }
-
-  .form-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .publish-btn,
-  .draft-btn {
-    width: 100%;
-    margin: 0;
-  }
-}
-
-/* 自定义复选框和单选框样式 */
-:deep(.el-checkbox.is-bordered) {
-  margin-right: 12px;
-  margin-bottom: 12px;
-  padding: 12px 16px;
-  border-radius: 8px;
-}
-
-:deep(.el-radio.is-bordered) {
-  margin-right: 12px;
-  margin-bottom: 12px;
-  padding: 16px;
-  border-radius: 8px;
-}
-
-:deep(.el-upload--picture-card) {
-  width: 100px;
-  height: 100px;
-  line-height: 100px;
-}
-
-:deep(.el-upload-list--picture-card .el-upload-list__item) {
-  width: 100px;
-  height: 100px;
+  width: 200px;
+  height: 48px;
+  font-size: 16px;
 }
 </style>

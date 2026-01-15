@@ -47,7 +47,7 @@ const fetchOrders = async () => {
   loading.value = true
   try {
     // 1. 这里的 res 直接就是后端返回的 List<OrdersVO> 数组
-    const res = await myAxios.get('/orders/list', {
+    const res = await myAxios.get('/order/list', {
       params: {
         role: activeTab.value
       }

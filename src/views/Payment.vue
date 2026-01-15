@@ -150,33 +150,21 @@ const goBack = () => {
 
 // --- 支付提交逻辑 ---
 const handlePaymentSubmit = async () => {
-  if (paymentType.value === 'balance' && isBalanceInsufficient.value) {
-    ElMessage.warning('Insufficient balance. Please use cash or top up.');
-    return;
-  }
-
+  // ... 前置校验保持不变
   isProcessing.value = true;
-
   try {
-    // 发送支付请求
-    await myAxios.post('/orders/pay', {
+    await myAxios.post('/order/pay', {
       itemIds: itemIds.value,
       payMethod: paymentType.value === 'balance' ? 1 : 2,
       amount: totalAmount.value
     });
-
-    ElMessage.success(
-        paymentType.value === 'balance'
-            ? 'Payment successful!'
-            : 'Order created! Please pay cash upon delivery.'
-    );
-
-    if (paymentType.value === 'balance') {
-      await userStore.fetchCurrentUser();
-    }
-
+    ElMessage.success('Payment successful!');
+    await userStore.fetchCurrentUser();
     router.push('/orders');
   } catch (err) {
+    // 拦截器 Promise.reject(new Error(errorMsg)) 会跑到这里
+    // 我们需要把这个 errorMsg 弹出来
+    ElMessage.error(err.message || 'Payment failed');
     console.error('Payment failed:', err);
   } finally {
     isProcessing.value = false;

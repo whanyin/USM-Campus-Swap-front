@@ -7,8 +7,8 @@
         <span class="order-id">Order #{{ order.id }}</span>
         <div class="header-right">
           <span class="order-time">{{ formatDate(order.createTime) }}</span>
-          <el-tag :type="getStatusType(order.status)" effect="dark" size="small">
-            {{ getStatusText(order.status) }}
+          <el-tag :type="getStatusType(order.orderStatus)" effect="dark" size="small">
+            {{ getStatusText(order.orderStatus) }}
           </el-tag>
         </div>
       </div>
